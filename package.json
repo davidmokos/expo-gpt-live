@@ -1,0 +1,66 @@
+{
+  "name": "gpt-live",
+  "main": "expo-router/entry",
+  "version": "1.0.0",
+  "dependencies": {
+    "@config-plugins/react-native-webrtc": "^15.0.2",
+    "@expo/ui": "~57.0.18",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@rive-app/react-native": "^0.4.20",
+    "@rive-app/react-webgl2": "^4.34.2",
+    "expo": "~57.0.23",
+    "expo-asset": "~57.0.17",
+    "expo-constants": "~57.0.18",
+    "expo-dev-client": "~57.0.19",
+    "expo-haptics": "~57.0.3",
+    "expo-linking": "~57.0.10",
+    "expo-router": "~57.0.21",
+    "expo-splash-screen": "~57.0.9",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-incall-manager": "^4.3.0",
+    "react-native-nitro-modules": "^0.35.10",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-web": "~0.21.0",
+    "react-native-webrtc": "^124.0.8",
+    "react-native-worklets": "0.10.1",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "@types/ws": "^8.18.1",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.13",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "start": "expo start --dev-client --port 8088 --lan",
+    "ios": "python3 scripts/build-ios.py --port 8088",
+    "ios:device": "python3 scripts/build-ios.py --port 8088 --device",
+    "android": "expo run:android --port 8088",
+    "web": "expo start --web --port 8088",
+    "test": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write . --ignore-path .gitignore",
+    "format:check": "prettier --check . --ignore-path .gitignore",
+    "check": "npm run typecheck && npm test && npm run format:check",
+    "eas-build-post-install": "python3 scripts/eas-post-install.py"
+  },
+  "private": true,
+  "description": "Expo SDK 57 voice app with GPT-Live 1 and AI Elements Persona.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "overrides": {
+    "xcode@3.0.1": {
+      "uuid": "11.1.1"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "Live",
+    "slug": "gpt-live",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/live-icon.png",
+    "scheme": "gptlive",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "com.example.gptlive",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Live uses your microphone for a conversation with GPT-Live 1.",
+        "UIBackgroundModes": ["audio"],
+        "NSLocalNetworkUsageDescription": "Live connects to the development server on your Mac.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "icon": "./assets/LiveIcon.icon"
+    },
+    "android": {
+      "predictiveBackGestureEnabled": false,
+      "package": "com.example.gptlive",
+      "permissions": [
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "WAKE_LOCK",
+        "BLUETOOTH"
+      ],
+      "blockedPermissions": ["android.permission.CAMERA"]
+    },
+    "web": {
+      "output": "server",
+      "favicon": "./assets/images/live-icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#000000"
+        }
+      ],
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "microphonePermission": "Live uses your microphone for a conversation with GPT-Live 1.",
+          "cameraPermission": false
+        }
+      ],
+      "expo-dev-client"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

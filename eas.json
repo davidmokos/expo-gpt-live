@@ -1,0 +1,22 @@
+{
+  "cli": {
+    "version": ">= 23.2.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "developmentClient": false,
+      "environment": "preview",
+      "autoIncrement": true,
+      "env": {
+        "XCBUILD_LAUNCH_IN_PROCESS": "1",
+        "SWIFTBUILD_LAUNCH_IN_PROCESS": "1"
+      },
+      "ios": {
+        "buildConfiguration": "Release",
+        "image": "sdk-57"
+      }
+    }
+  }
+}

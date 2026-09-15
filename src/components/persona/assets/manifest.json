@@ -1,0 +1,48 @@
+{
+  "upstreamSource": "https://raw.githubusercontent.com/vercel/ai-elements/6a9d5b1822ffb10bba4bd97175f01edd7d8651cd/packages/elements/src/persona.tsx",
+  "upstreamLicense": "https://raw.githubusercontent.com/vercel/ai-elements/6a9d5b1822ffb10bba4bd97175f01edd7d8651cd/LICENSE",
+  "assets": [
+    {
+      "variant": "obsidian",
+      "file": "obsidian.riv",
+      "source": "https://ejiidnob33g9ap1r.public.blob.vercel-storage.com/obsidian-2.0.riv",
+      "bytes": 7959,
+      "sha256": "c6ae7d08f5787a560e38d3453ba155c28250acf2db75e6acf2b0d1a0cd6017db"
+    },
+    {
+      "variant": "mana",
+      "file": "mana.riv",
+      "source": "https://ejiidnob33g9ap1r.public.blob.vercel-storage.com/mana-2.0.riv",
+      "bytes": 8082,
+      "sha256": "5d00ae2a04147e70a10033250c64cae50d84c20be728bfb0a9ef37349395477a"
+    },
+    {
+      "variant": "opal",
+      "file": "opal.riv",
+      "source": "https://ejiidnob33g9ap1r.public.blob.vercel-storage.com/orb-1.2.riv",
+      "bytes": 10178,
+      "sha256": "ff2e885d4f065bbfd9b855b1a7aeaecb771c1047d9ef196ba910ba114aac06f8"
+    },
+    {
+      "variant": "halo",
+      "file": "halo.riv",
+      "source": "https://ejiidnob33g9ap1r.public.blob.vercel-storage.com/halo-2.0.riv",
+      "bytes": 4497,
+      "sha256": "c8d97df33c47f52c993667515700e12f110539a46048b142a0ec787dba9dcc96"
+    },
+    {
+      "variant": "glint",
+      "file": "glint.riv",
+      "source": "https://ejiidnob33g9ap1r.public.blob.vercel-storage.com/glint-2.0.riv",
+      "bytes": 4630,
+      "sha256": "3a7a1ab4bf456082da7eaa1c6148881a740af87253f34580238c3ff0cef1940c"
+    },
+    {
+      "variant": "command",
+      "file": "command.riv",
+      "source": "https://ejiidnob33g9ap1r.public.blob.vercel-storage.com/command-2.0.riv",
+      "bytes": 2738,
+      "sha256": "9d4dd75565da1bed3048b4dbe0e21efb192058fc0399d77077e0fa2de7a60ec3"
+    }
+  ]
+}
