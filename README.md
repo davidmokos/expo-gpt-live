@@ -4,6 +4,8 @@
 
 An Expo SDK 57 voice app with GPT-Live 1, native audio, and six [AI Elements Persona](https://elements.ai-sdk.dev/components/persona) variants. You can speak during replies, choose a voice, and keep an iPhone conversation running in the background.
 
+https://github.com/user-attachments/assets/dd22258b-18b2-48fb-9d93-4a928df576cc
+
 ## Get started
 
 You need Node.js 22.13+, macOS with Xcode 26.4+, and an OpenAI API key with access to GPT-Live 1.
