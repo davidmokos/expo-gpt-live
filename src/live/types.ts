@@ -45,8 +45,17 @@ export type TransportCallbacks = {
   onFailure: (message: string) => void;
 };
 export type TransportFactory = (callbacks: TransportCallbacks) => Promise<LiveTransport>;
+export interface ToolConnection {
+  ready: Promise<void>;
+  close(): void;
+  setAppActive(active: boolean): void;
+}
 export interface SessionAPI {
   prepare?(): void;
-  create(sdp: string, voice?: LiveVoice): Promise<{ sdp: string; sessionId: string }>;
+  create(
+    sdp: string,
+    voice?: LiveVoice,
+  ): Promise<{ sdp: string; sessionId: string; tools?: boolean }>;
+  connectTools?(sessionId: string, onFailure: (message: string) => void): ToolConnection;
   close(sessionId: string): Promise<void>;
 }

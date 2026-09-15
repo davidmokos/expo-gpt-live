@@ -20,6 +20,8 @@ EXPO_NO_DOTENV=1 npx eas-cli@latest deploy --prod --environment production
 
 Keep the deployment's production URL for the next step. The shared `API_TOKEN` is intended for private testing; use user authentication for a public backend.
 
+The `/api/live-tools` route streams for the duration of a call. If you self-host, disable response buffering and allow requests to remain open for at least ten minutes. The client uses `expo/fetch` to read this stream on native.
+
 ## Build for iPhone
 
 Set the hosted URL as `EXPO_PUBLIC_API_URL`. Set `EXPO_PUBLIC_API_TOKEN` to the same value as the server's `API_TOKEN`.

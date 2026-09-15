@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { createSessionAPI } from '../src/live/api-client';
 import { LiveSession } from '../src/live/session';
 import type {
   AudioStats,
   LiveEvent,
   LiveTransport,
   SessionAPI,
+  ToolConnection,
   TransportCallbacks,
   TransportFactory,
 } from '../src/live/types';
@@ -159,6 +161,7 @@ function harness() {
   };
   const session = new LiveSession(factory, api);
   return {
+    api,
     session,
     transports,
     created,
@@ -175,6 +178,248 @@ function harness() {
     },
   };
 }
+
+function enableTools(h: ReturnType<typeof harness>) {
+  const create = h.control.create;
+  h.control.create = async (sdp) => ({ ...(await create(sdp)), tools: true });
+  const connections: {
+    sessionId: string;
+    ready: ReturnType<typeof deferred<void>>;
+    failure: (message: string) => void;
+    active: boolean[];
+    closeCount: number;
+  }[] = [];
+  h.api.connectTools = (sessionId, failure): ToolConnection => {
+    const connection = {
+      sessionId,
+      ready: deferred<void>(),
+      failure,
+      active: [] as boolean[],
+      closeCount: 0,
+    };
+    connections.push(connection);
+    return {
+      ready: connection.ready.promise,
+      setAppActive(active) {
+        connection.active.push(active);
+      },
+      close() {
+        connection.closeCount++;
+        connection.ready.reject(new Error('canceled'));
+      },
+    };
+  };
+  return connections;
+}
+
+test('tools must be ready before applying the answer or entering a connected call', async () => {
+  const h = harness();
+  const tools = enableTools(h);
+  try {
+    const starting = h.session.start();
+    await settle();
+    assert.equal(h.session.getSnapshot().status, 'connecting');
+    assert.deepEqual(h.transports[0].answers, []);
+    assert.equal(tools[0].sessionId, 'live_1');
+    tools[0].ready.resolve();
+    await starting;
+    assert.equal(h.session.getSnapshot().status, 'connected');
+    assert.deepEqual(h.transports[0].answers, ['answer-offer']);
+    assert.deepEqual(h.transports[0].muteChanges, []);
+    assert.equal(tools.length, 1);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test('ending during tool readiness aborts the stream immediately and never applies its answer', async () => {
+  const h = harness();
+  const tools = enableTools(h);
+  try {
+    const starting = h.session.start();
+    await settle();
+    const stopping = h.session.stop();
+    assert.equal(tools[0].closeCount, 1);
+    assert.deepEqual(h.transports[0].muteChanges, [true]);
+    await starting;
+    await stopping;
+    tools[0].failure('Late tool error');
+    assert.deepEqual(h.transports[0].answers, []);
+    assert.equal(h.session.getSnapshot().status, 'idle');
+    assert.equal(h.transports[0].closed, true);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test('a tool readiness rejection closes the allocated call with a clear error', async () => {
+  const h = harness();
+  const tools = enableTools(h);
+  try {
+    const starting = h.session.start();
+    await settle();
+    tools[0].ready.reject(new Error('The tool service did not become ready. Please try again.'));
+    await starting;
+    assert.equal(h.session.getSnapshot().status, 'error');
+    assert.match(h.session.getSnapshot().error ?? '', /tool service did not become ready/);
+    assert.equal(tools[0].closeCount, 1);
+    assert.equal(h.transports[0].closed, true);
+    assert.deepEqual(h.transports[0].answers, []);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test('stream failure stops an active call, and stale callbacks cannot end the next call', async () => {
+  const h = harness();
+  const tools = enableTools(h);
+  try {
+    let starting = h.session.start();
+    await settle();
+    tools[0].ready.resolve();
+    await starting;
+    tools[0].failure('The tool connection was interrupted.');
+    await settle();
+    assert.equal(h.session.getSnapshot().status, 'error');
+    assert.match(h.session.getSnapshot().error ?? '', /tool connection was interrupted/);
+    assert.equal(h.transports[0].closed, true);
+    assert.equal(tools[0].closeCount, 1);
+    starting = h.session.start();
+    await settle();
+    tools[1].ready.resolve();
+    await starting;
+    tools[0].failure('Late failure from the previous call');
+    await settle();
+    assert.equal(h.session.getSnapshot().status, 'connected');
+    assert.equal(h.transports[1].closed, false);
+    assert.equal(tools[1].closeCount, 0);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test('background transitions preserve one tool stream, audio capture, and the ten-minute cap', async () => {
+  const h = harness();
+  const tools = enableTools(h);
+  try {
+    const starting = h.session.start();
+    h.session.setAppActive(false);
+    await settle();
+    assert.deepEqual(tools[0].active, [false]);
+    tools[0].ready.resolve();
+    await starting;
+    h.clock.now += 45_000;
+    h.session.setAppActive(true);
+    h.session.setAppActive(false);
+    assert.deepEqual(tools[0].active, [false, true, false]);
+    assert.equal(tools[0].closeCount, 0);
+    assert.equal(tools.length, 1);
+    assert.equal(h.created.length, 1);
+    assert.equal(h.session.getSnapshot().status, 'connected');
+    assert.deepEqual(h.transports[0].muteChanges, []);
+    h.clock.now += 555_000;
+    await h.clock.fire(600_000);
+    assert.match(h.session.getSnapshot().error ?? '', /10-minute limit/);
+    assert.equal(tools[0].closeCount, 1);
+    assert.equal(h.transports[0].closed, true);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test('normal session closure disposes its tool stream without an error', async () => {
+  const h = harness();
+  const tools = enableTools(h);
+  try {
+    const starting = h.session.start();
+    await settle();
+    tools[0].ready.resolve();
+    await starting;
+    h.transports[0].emit({ type: 'session.closed' });
+    await settle();
+    assert.equal(tools[0].closeCount, 1);
+    assert.equal(h.session.getSnapshot().status, 'idle');
+    assert.equal(h.session.getSnapshot().error, null);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test('canceling session creation never opens a stream for the late server response', async () => {
+  const h = harness();
+  const response = deferred<{ sdp: string; sessionId: string }>();
+  h.control.create = () => response.promise;
+  const tools = enableTools(h);
+  try {
+    const starting = h.session.start();
+    await settle();
+    await h.session.stop();
+    response.resolve({ sdp: 'late-answer', sessionId: 'live_late' });
+    await starting;
+    assert.equal(tools.length, 0);
+    assert.deepEqual(h.closed, ['live_late']);
+    assert.deepEqual(h.transports[0].answers, []);
+  } finally {
+    await h.cleanup();
+  }
+});
+
+test('the real API stream gates audio and a dropped stream closes the call through the controller', async () => {
+  const clock = new ManualClock();
+  const requests: string[] = [];
+  let stream!: ReadableStreamDefaultController<Uint8Array>;
+  let transport!: FakeTransport;
+  let streamSignal: AbortSignal | null | undefined;
+  const api = createSessionAPI({
+    isWeb: true,
+    getAccessToken: () => 'local-test-token',
+    fetch: async (url, init) => {
+      requests.push(`${init?.method} ${url}`);
+      if (url === '/api/live-session') {
+        return Response.json({ sdp: 'answer', sessionId: 'live_integrated', tools: true });
+      }
+      streamSignal = init?.signal;
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(value) {
+            stream = value;
+          },
+        }),
+        {
+          headers: { 'Content-Type': 'application/x-ndjson' },
+        },
+      );
+    },
+  });
+  const session = new LiveSession(async (callbacks) => {
+    transport = new FakeTransport(callbacks);
+    return transport;
+  }, api);
+  try {
+    const starting = session.start();
+    await settle();
+    assert.equal(session.getSnapshot().status, 'connecting');
+    assert.deepEqual(transport.answers, []);
+    stream.enqueue(new TextEncoder().encode('{"type":"ready"}\n'));
+    await starting;
+    assert.equal(session.getSnapshot().status, 'connected');
+    session.setAppActive(false);
+    await clock.fire(30_000);
+    assert.equal(session.getSnapshot().status, 'connected');
+    assert.equal(streamSignal?.aborted, false);
+    assert.deepEqual(transport.muteChanges, []);
+    stream.error(new Error('connection dropped'));
+    await settle();
+    assert.equal(session.getSnapshot().status, 'error');
+    assert.match(session.getSnapshot().error ?? '', /tool connection was interrupted/);
+    assert.equal(transport.closed, true);
+    assert.equal(streamSignal?.aborted, true);
+    assert.deepEqual(requests, ['POST /api/live-session', 'POST /api/live-tools']);
+  } finally {
+    await session.stop();
+    clock.restore();
+  }
+});
 
 test('configuration errors and a canceled browser token prompt do not open the microphone', async () => {
   const h = harness();

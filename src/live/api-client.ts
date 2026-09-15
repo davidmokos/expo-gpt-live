@@ -1,4 +1,5 @@
 import type { SessionAPI } from './types';
+import { createToolConnection } from './tool-connection';
 
 type Options = {
   fetch: typeof globalThis.fetch;
@@ -14,8 +15,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function createSessionAPI(options: Options): SessionAPI {
-  function endpoint() {
-    if (options.isWeb) return '/api/live-session';
+  function endpoint(path = '/api/live-session') {
+    if (options.isWeb) return path;
     const origin = options.apiUrl?.trim().replace(/\/+$/, '');
     if (!origin) {
       throw new Error(
@@ -37,7 +38,7 @@ export function createSessionAPI(options: Options): SessionAPI {
         'EXPO_PUBLIC_API_URL must be an http:// or https:// server URL without credentials, a query, or a fragment.',
       );
     }
-    return `${origin}/api/live-session`;
+    return `${origin}${path}`;
   }
 
   function accessToken(interactive = false) {
@@ -113,19 +114,48 @@ export function createSessionAPI(options: Options): SessionAPI {
       accessToken(true);
     },
     async create(sdp, voice) {
-      const result = await request('POST', { sdp, voice });
+      const result = await request('POST', { sdp, voice, tools: true });
       if (
         !isRecord(result) ||
         typeof result.sdp !== 'string' ||
         !result.sdp ||
         typeof result.sessionId !== 'string' ||
-        !result.sessionId
+        !result.sessionId ||
+        (result.tools !== undefined && typeof result.tools !== 'boolean')
       ) {
         throw new Error(
           'The voice server returned an invalid connection. Check that the server URL points to this app.',
         );
       }
-      return { sdp: result.sdp, sessionId: result.sessionId };
+      return {
+        sdp: result.sdp,
+        sessionId: result.sessionId,
+        ...(result.tools === true ? { tools: true } : {}),
+      };
+    },
+    connectTools(sessionId, onFailure) {
+      const url = endpoint('/api/live-tools');
+      const token = accessToken();
+      return createToolConnection({
+        onFailure,
+        open: async (signal) => {
+          const response = await options.fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/x-ndjson',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ sessionId }),
+            signal,
+          });
+          if (response.status === 401) {
+            const result: unknown = await response.json().catch(() => null);
+            if (isRecord(result) && result.code === 'unauthorized') options.clearAccessToken?.();
+          }
+          return response;
+        },
+      });
     },
     async close(sessionId) {
       await request('DELETE', { sessionId });

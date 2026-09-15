@@ -2,7 +2,7 @@
 
 # Live
 
-An Expo SDK 57 voice app with GPT-Live 1, native audio, and six [AI Elements Persona](https://elements.ai-sdk.dev/components/persona) variants. You can speak during replies, choose a voice, and keep an iPhone conversation running in the background.
+An Expo SDK 57 voice app with GPT-Live 1, web search, a weather tool, and six [AI Elements Persona](https://elements.ai-sdk.dev/components/persona) variants. You can speak during replies, choose a voice, and keep an iPhone conversation running in the background.
 
 https://github.com/user-attachments/assets/dd22258b-18b2-48fb-9d93-4a928df576cc
 
@@ -51,7 +51,7 @@ npm run check
 npm run format
 ```
 
-The screen is in `src/screens/live-screen.tsx`. Native controls and Persona renderers are in `src/components`. Call lifecycle and transports are in `src/live`; the server route uses `src/server/live-session.ts`.
+The screen is in `src/screens/live-screen.tsx`. Native controls and Persona renderers are in `src/components`. Call lifecycle and transports are in `src/live`; session configuration and tools are in `src/server`. See [tools](docs/tools.md) to add your own.
 
 Voices are fixed for each call. Persona choices can change at any time. Both choices are saved locally. Calls end after ten minutes; this does not enforce an account spending limit.
 

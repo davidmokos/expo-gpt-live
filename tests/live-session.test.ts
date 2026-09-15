@@ -141,6 +141,11 @@ test('uses fixed server configuration and returns only the answer and opaque ses
       assert.equal(body.session.delegation.responses.model, 'gpt-5.6-luna');
       assert.equal(body.session.delegation.responses.max_output_tokens, 600);
       assert.equal(body.session.store, false);
+      assert.deepEqual(body.session.client.data_channel.allowed_client_events, [
+        'session.input_audio.mute',
+        'session.input_audio.unmute',
+        'session.close',
+      ]);
       assert.deepEqual(body.transport, { type: 'webrtc', sdp: offer });
       assert.equal(body.session.audio.input, undefined);
       return Response.json(
@@ -329,6 +334,7 @@ test('sideband close waits for session.closed before cleaning up the socket', as
     },
   });
   socket.emit('open');
+  await new Promise<void>((resolve) => setImmediate(resolve));
   assert.deepEqual(
     socket.sent.map((item) => JSON.parse(item)),
     [{ type: 'session.close' }],
@@ -387,7 +393,7 @@ test('Workers close uses an authenticated upgrade and waits for final session co
       return { status: 101, webSocket: socket } as unknown as Response;
     },
   });
-  await Promise.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
   assert.deepEqual(
     socket.sent.map((item) => JSON.parse(item)),
     [{ type: 'session.close' }],
@@ -463,4 +469,37 @@ test('Workers closes a sideband that never confirms session finalization', async
     /without final session confirmation/,
   );
   assert.equal(socket.stopped, true);
+});
+
+test('enables custom tools only for clients that maintain a tool connection', async () => {
+  const received: Record<string, unknown>[] = [];
+  const handlers = createLiveSessionHandlers({
+    apiKey: fakeKey,
+    fetch: async (_url, init) => {
+      received.push(JSON.parse(String(init?.body)));
+      return Response.json({ session: { id: 'live_tools' }, transport: { sdp: answer } });
+    },
+  });
+  for (const tools of [undefined, false, true]) {
+    const response = await handlers.POST(request({ sdp: offer, tools }));
+    assert.equal(response.status, 201);
+    assert.deepEqual(await response.json(), {
+      sdp: answer,
+      sessionId: 'live_tools',
+      ...(tools ? { tools: true } : {}),
+    });
+    const body = received.at(-1) as {
+      session: { delegation: { responses: { tools: { type: string; name?: string }[] } } };
+    };
+    const definitions = body.session.delegation.responses.tools;
+    assert.deepEqual(
+      definitions.map(({ type }) => type),
+      tools ? ['web_search', 'function'] : ['web_search'],
+    );
+    if (tools) assert.equal(definitions[1].name, 'get_weather');
+  }
+  for (const tools of ['true', null, {}, []]) {
+    assert.equal((await handlers.POST(request({ sdp: offer, tools }))).status, 400);
+  }
+  assert.equal(received.length, 3);
 });

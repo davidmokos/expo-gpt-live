@@ -1,4 +1,11 @@
-import type { LiveEvent, LiveSnapshot, LiveTransport, SessionAPI, TransportFactory } from './types';
+import type {
+  LiveEvent,
+  LiveSnapshot,
+  LiveTransport,
+  SessionAPI,
+  ToolConnection,
+  TransportFactory,
+} from './types';
 import { DEFAULT_VOICE, type LiveVoice } from './voices';
 
 const initialSnapshot = (): LiveSnapshot => ({
@@ -21,6 +28,7 @@ export class LiveSession {
   private listeners = new Set<() => void>();
   private transport: LiveTransport | null = null;
   private sessionId: string | null = null;
+  private tools: ToolConnection | null = null;
   private generation = 0;
   private statsTimer?: ReturnType<typeof setInterval>;
   private startupTimer?: ReturnType<typeof setTimeout>;
@@ -108,6 +116,17 @@ export class LiveSession {
         return;
       }
       this.sessionId = session.sessionId;
+      if (session.tools) {
+        if (!this.api.connectTools)
+          throw new Error('The tool service is unavailable. Please try again.');
+        const tools = this.api.connectTools(session.sessionId, (message) => {
+          if (isCurrent() && !this.closing) void this.stop(message);
+        });
+        this.tools = tools;
+        tools.setAppActive(this.appActive);
+        await tools.ready;
+        if (!isCurrent()) return;
+      }
       this.startupTimer = setTimeout(() => {
         void this.stop('The voice session did not start. Please try again.');
       }, 25000);
@@ -199,6 +218,7 @@ export class LiveSession {
 
   setAppActive = (active: boolean) => {
     this.appActive = active;
+    this.tools?.setAppActive(active);
     clearInterval(this.statsTimer);
     if (!this.refreshElapsed()) return;
     if (active) {
@@ -303,6 +323,8 @@ export class LiveSession {
       return Promise.resolve();
     }
     ++this.generation;
+    this.tools?.close();
+    this.tools = null;
     clearInterval(this.statsTimer);
     clearTimeout(this.startupTimer);
     clearTimeout(this.durationTimer);

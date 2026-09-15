@@ -68,6 +68,7 @@ test('missing browser authorization fails cleanup without prompting or fetching'
     },
   });
   await assert.rejects(api.close('live_test'), /access token is required/);
+  assert.throws(() => api.connectTools!('live_test', assert.fail), /access token is required/);
   assert.equal(prompted, false);
   assert.equal(calls, 0);
 });
@@ -78,11 +79,91 @@ test('sends the chosen voice and returns only the connection fields', async () =
     apiUrl: 'https://voice.example///',
     fetch: async (url, init) => {
       assert.equal(url, 'https://voice.example/api/live-session');
-      assert.deepEqual(JSON.parse(String(init?.body)), { sdp: 'offer', voice: 'ash' });
+      assert.deepEqual(JSON.parse(String(init?.body)), { sdp: 'offer', voice: 'ash', tools: true });
       return Response.json({ sdp: 'answer', sessionId: 'live_test', extra: 'discarded' });
     },
   });
   assert.deepEqual(await api.create('offer', 'ash'), { sdp: 'answer', sessionId: 'live_test' });
+});
+
+test('accepts tool support only when the server explicitly enables it', async () => {
+  for (const tools of [undefined, false, true]) {
+    const api = createSessionAPI({
+      ...base,
+      fetch: async () => Response.json({ sdp: 'answer', sessionId: 'live_test', tools }),
+    });
+    assert.deepEqual(await api.create('offer'), {
+      sdp: 'answer',
+      sessionId: 'live_test',
+      ...(tools === true ? { tools: true } : {}),
+    });
+  }
+  const invalid = createSessionAPI({
+    ...base,
+    fetch: async () => Response.json({ sdp: 'answer', sessionId: 'live_test', tools: 'true' }),
+  });
+  await assert.rejects(invalid.create('offer'), /invalid connection/);
+});
+
+test('opens one authenticated tool stream without an interactive token prompt', async () => {
+  for (const isWeb of [false, true]) {
+    const prompts: boolean[] = [];
+    let signal: AbortSignal | null | undefined;
+    let calls = 0;
+    const api = createSessionAPI({
+      ...base,
+      isWeb,
+      getAccessToken(interactive = false) {
+        prompts.push(interactive);
+        return token;
+      },
+      fetch: async (url, init) => {
+        calls++;
+        signal = init?.signal;
+        assert.equal(url, `${isWeb ? '' : 'https://voice.example'}/api/live-tools`);
+        assert.equal(init?.method, 'POST');
+        assert.deepEqual(JSON.parse(String(init?.body)), { sessionId: 'live_test' });
+        const headers = new Headers(init?.headers);
+        assert.equal(headers.get('authorization'), `Bearer ${token}`);
+        assert.equal(headers.get('accept'), 'application/x-ndjson');
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('{"type":"ready"}\n'));
+            },
+          }),
+          { headers: { 'Content-Type': 'application/x-ndjson' } },
+        );
+      },
+    });
+    const connection = api.connectTools!('live_test', assert.fail);
+    await connection.ready;
+    connection.close();
+    assert.equal(signal?.aborted, true);
+    assert.deepEqual(prompts, [false]);
+    assert.equal(calls, 1);
+  }
+});
+
+test('tool authentication failures clear only a rejected app token and never retry', async () => {
+  for (const code of ['unauthorized', 'invalid_api_key']) {
+    let cleared = 0;
+    let calls = 0;
+    const api = createSessionAPI({
+      ...base,
+      clearAccessToken() {
+        cleared++;
+      },
+      fetch: async () => {
+        calls++;
+        return Response.json({ code }, { status: 401 });
+      },
+    });
+    const connection = api.connectTools!('live_test', assert.fail);
+    await assert.rejects(connection.ready, /tool connection/);
+    assert.equal(cleared, code === 'unauthorized' ? 1 : 0);
+    assert.equal(calls, 1);
+  }
 });
 
 test('malformed successful responses produce an actionable error', async () => {
